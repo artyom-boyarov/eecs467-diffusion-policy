@@ -1,0 +1,22 @@
+#!/bin/bash 
+# COMMENT: #SBATCH directives that convey submission options:
+#SBATCH --job-name=lerobot_act_tutorial
+#SBATCH --mail-user=aboyarov@umich.edu
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --cpus-per-task=4
+#SBATCH --nodes=1
+#SBATCH --partition=gpu
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem-per-cpu=1000m
+#SBATCH --time=4:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --output=/home/%u/lerobot_act-%x-%j.log
+#SBATCH --account=rob430w26s001_class
+# COMMENT:The application(s) to execute along with its input arguments and options:
+rm -rf outputs/
+python3 -m venv .venv
+source .venv/bin/activate
+pip install lerobot
+export HF_USER=aboyarov
+export HUGGINGFACE_TOKEN=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
+lerobot-train --dataset.repo_id=${HF_USER}/eval_red-block-ar-tag-same-init --policy.type=act --output_dir=outputs/train/act_redblock_test --job_name=act_redblock_test --policy.device=cuda --policy.repo_id=${HF_USER}/redblock_ar_tag_act_same_init

@@ -1,0 +1,22 @@
+#!/bin/bash 
+# COMMENT: #SBATCH directives that convey submission options:
+#SBATCH --job-name=eecs467_train_diffusion
+#SBATCH --mail-user=aboyarov@umich.edu
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --cpus-per-task=4
+#SBATCH --nodes=1
+#SBATCH --partition=gpu
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem-per-cpu=1000m
+#SBATCH --time=4:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --output=/home/%u/diff_eecs467_train-%x-%j.log
+#SBATCH --account=rob430w26s001_class
+# COMMENT:The application(s) to execute along with its input arguments and options:
+rm -rf outputs/
+source .venv/bin/activate
+pip3 install -r requirements.txt
+pip3 install -e .
+export HF_USER=aboyarov
+export HUGGINGFACE_TOKEN=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
+lerobot-train --dataset.repo_id=${HF_USER}/eval_red-block-ar-tag-same-init --policy.type=diffusion_eecs467 --output_dir=outputs/train/eecs467_diffusion --job_name=eecs467_diffusion_train --policy.device=cuda --policy.repo_id=${HF_USER}/redblock-ar-tag-diffusion-eecs467

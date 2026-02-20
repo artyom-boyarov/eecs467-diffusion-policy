@@ -1,0 +1,15 @@
+[project]
+name = "lerobot_policy_diffusion_eecs467"
+version = "0.1.0"
+dependencies = [
+    # your policy-specific dependencies
+]
+requires-python = ">= 3.10"
+authors = [
+    { name="Art Boyarov", email="aboyarov@umich.edu" },
+]
+
+[build-system]
+requires=["hatchling"]
+build-backend = "hatchling.build"
+

@@ -178,16 +178,18 @@ class DiffusionEECS467VisionEncoder(nn.Module):
             self.linear,
             self.relu
         )
+        self.resize = torchvision.transforms.Resize(config.resize_shape)
         self.center_crop = torchvision.transforms.CenterCrop(config.crop_shape)
         self.random_crop = torchvision.transforms.RandomCrop(config.crop_shape) if config.random_crop else self.center_crop
 
     def forward(self, image_batch: torch.Tensor) -> torch.Tensor:
 
         # Center/Random crop for training/inference.
+        image_batch = self.resize(image_batch.flatten(0, 1)) # (B * n_obs_steps, C, H, W)
         if self.training:
-            image_batch = self.random_crop(image_batch.flatten(0, 1)) # (B * n_obs_steps, C, H, W)
+            image_batch = self.random_crop(image_batch) # (B * n_obs_steps, C, H, W)
         else:
-            image_batch = self.center_crop(image_batch.flatten(0, 1)) # (B * n_obs_steps, C, H, W)
+            image_batch = self.center_crop(image_batch) # (B * n_obs_steps, C, H, W)
         
         image_batch = image_batch.view(-1, self.config.n_obs_steps, *image_batch.shape[1:]) # (B, n_obs_steps, C, H, W)
         

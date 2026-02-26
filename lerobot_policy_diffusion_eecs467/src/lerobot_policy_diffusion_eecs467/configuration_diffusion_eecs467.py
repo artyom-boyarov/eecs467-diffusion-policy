@@ -26,6 +26,7 @@ class DiffusionEECS467Config(PreTrainedConfig):
     # Vision encoder parameters
     vision_encoder_name: str = "resnet18"
     vision_encoder_weights: str = "IMAGENET1K_V1"
+    resize_shape: tuple = (96, 96)
     crop_shape: tuple = (84, 84)
     random_crop: bool = True
     spatial_softmax_kp: int = 32

@@ -16,5 +16,4 @@
 source .venv/bin/activate
 pip3 install -r requirements.txt
 pip3 install -e .
-export HF_USER=aboyarov
 lerobot-train --config_path=outputs/train/eecs467_diffusion/checkpoints/last/pretrained_model/train_config.json --resume=true

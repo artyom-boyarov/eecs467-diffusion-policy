@@ -14,13 +14,21 @@ class DiffusionEECS467Config(PreTrainedConfig):
     joint_dim = 6
 
     # Horizons
-    n_obs_steps: int = 8
-    n_action_steps: int = 32
-    horizon: int = 64
+    n_obs_steps: int = 2
+    n_action_steps: int = 8
+    horizon: int = 16
 
     # Diffusion model parameters
     diffusion_steps: int = 100
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
+    diffusion_step_embed_dim: int = 256
+
+    # Vision encoder parameters
+    vision_encoder_name: str = "resnet18"
+    vision_encoder_weights: str = "IMAGENET1K_V1"
+    crop_shape: tuple = (84, 84)
+    random_crop: bool = True
+    spatial_softmax_kp: int = 32
 
     # Training parameters
     learning_rate: float = 1e-4

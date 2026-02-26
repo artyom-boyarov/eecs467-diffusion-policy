@@ -17,6 +17,4 @@ rm -rf outputs/
 source .venv/bin/activate
 pip3 install -r requirements.txt
 pip3 install -e .
-export HF_USER=aboyarov
-export HUGGINGFACE_TOKEN=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
 lerobot-train --dataset.repo_id=${HF_USER}/eval_red-block-ar-tag-same-init --policy.type=diffusion_eecs467 --output_dir=outputs/train/eecs467_diffusion --job_name=eecs467_diffusion_train --policy.device=cuda --policy.repo_id=${HF_USER}/redblock-ar-tag-diffusion-eecs467

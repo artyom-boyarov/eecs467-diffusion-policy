@@ -100,7 +100,6 @@ class DiffusionNoiseScheduler():
 def get_resnet(name: str, weights=None, **kwargs) -> nn.Module:
     func = getattr(torchvision.models, name)
     resnet = func(weights=weights, **kwargs)
-
     resnet.fc = nn.Identity()
     return resnet
 

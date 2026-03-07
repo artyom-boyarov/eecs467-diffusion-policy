@@ -1,9 +1,8 @@
 from lerobot.cameras.realsense import RealSenseCameraConfig
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.datasets.utils import hw_to_dataset_features
-from lerobot.robots.so101_follower import SO101Follower, SO101FollowerConfig
-from lerobot.teleoperators.so101_leader.config_so101_leader import SO101LeaderConfig
-from lerobot.teleoperators.so101_leader.so101_leader import SO101Leader
+from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
+from lerobot.teleoperators.so_leader import SO101LeaderConfig, SO101Leader
 from lerobot.processor.converters import (
     observation_to_transition,
     robot_action_observation_to_transition,
@@ -69,14 +68,14 @@ NUM_EPISODES = 60
 FPS = 30
 EPISODE_TIME_SEC = 20
 RESET_TIME_SEC = 5
-TASK_DESCRIPTION = "Place red block on AR tag"
+TASK_DESCRIPTION = "Place red block on white square without occlusion"
 
 # Create robot configuration
 robot_config = SO101FollowerConfig(
     id="follower_arm",
     cameras={
         "top": RealSenseCameraConfig(
-            serial_number_or_name="152222070462", width=640, height=480, fps=FPS
+            serial_number_or_name="409122274501", width=640, height=480, fps=FPS
         )
     },
     port="/dev/ttyACM0",
@@ -97,7 +96,7 @@ obs_features = hw_to_dataset_features(robot.observation_features, "observation")
 dataset_features = {**action_features, **obs_features}
 
 # Create the dataset
-DATASET_NAME = "eval_red-block-ar-tag-same-init"
+DATASET_NAME = "eval_red-block-white-square"
 HF_USER = "aboyarov"
 try:
     dataset = LeRobotDataset.create(

@@ -87,7 +87,7 @@ class DiffusionEECS467Model(nn.Module):
             input_dim=self.action_dim,
             global_cond_dim=self.obs_dim * self.config.n_obs_steps,
             diffusion_step_embed_dim=self.config.diffusion_step_embed_dim,
-            down_dims=[256, 512, 1024],
+            down_dims=[512, 1024, 2048],
             kernel_size=5,
             n_groups=8
         )
@@ -96,6 +96,8 @@ class DiffusionEECS467Model(nn.Module):
             "vision_encoder": self.vision_encoder,
             "noise_pred_unet": self.noise_pred_unet
         })
+        print("Vision encoder #params: ", sum(p.numel() for p in self.vision_encoder.parameters()))
+        print("Noise pred unet #params: ", sum(p.numel() for p in self.noise_pred_unet.parameters()))
 
         self.noise_scheduler = DiffusionNoiseScheduler(
             num_steps=self.config.diffusion_steps,

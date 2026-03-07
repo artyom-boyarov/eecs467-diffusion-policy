@@ -6,7 +6,7 @@ robot_config = SO101FollowerConfig(
     id="follower_arm",
     cameras={
         "top": RealSenseCameraConfig(
-            serial_number_or_name="152222070462", width=640, height=480, fps=FPS
+            serial_number_or_name="409122274501", width=640, height=480, fps=FPS
         )
     },
     port="/dev/ttyACM0",

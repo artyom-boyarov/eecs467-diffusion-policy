@@ -8,12 +8,14 @@
 #SBATCH --partition=gpu
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem-per-cpu=1000m
-#SBATCH --time=4:00:00
+#SBATCH --time=6:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --output=/home/%u/diff_eecs467_train-%x-%j.log
 #SBATCH --account=rob430w26s001_class
 # COMMENT:The application(s) to execute along with its input arguments and options:
 source .venv/bin/activate
+conda activate lerobot
 pip3 install -r requirements.txt
 pip3 install -e .
+source ~/hf_token
 lerobot-train --config_path=outputs/train/eecs467_diffusion/checkpoints/last/pretrained_model/train_config.json --resume=true

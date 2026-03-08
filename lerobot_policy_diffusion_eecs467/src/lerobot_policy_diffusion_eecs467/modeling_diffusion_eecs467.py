@@ -15,10 +15,15 @@ from lerobot.utils.constants import (
 )
 from lerobot.policies.utils import populate_queues, get_output_shape
 
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
+from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultistepScheduler
+
 from lerobot_policy_diffusion_eecs467.diffusion_utils import DiffusionNoiseScheduler, get_resnet
 from lerobot_policy_diffusion_eecs467.configuration_diffusion_eecs467 import DiffusionEECS467Config
 
+
 OBS_IMAGES_TOP = "observation.images.top"
+OBS_IMAGES_WRIST = "observation.images.wrist"
 
 from typing import Dict, Any
 
@@ -77,9 +82,10 @@ class DiffusionEECS467Model(nn.Module):
         self.config = config
         self.device = config.device
 
-        self.vision_encoder = DiffusionEECS467VisionEncoder(config)
+        self.top_vision_encoder = DiffusionEECS467VisionEncoder(config)
+        self.wrist_vision_encoder = DiffusionEECS467VisionEncoder(config)
 
-        self.vision_feature_dim = self.vision_encoder.feature_dim  # ResNet18 output feature dimension
+        self.vision_feature_dim = self.top_vision_encoder.feature_dim + self.wrist_vision_encoder.feature_dim  # ResNet18 output feature dimension
         self.obs_dim = self.vision_feature_dim + self.config.joint_dim
         self.action_dim = self.config.action_dim
 
@@ -93,25 +99,37 @@ class DiffusionEECS467Model(nn.Module):
         )
 
         self.nets = torch.nn.ModuleDict({
-            "vision_encoder": self.vision_encoder,
+            "top_vision_encoder": self.top_vision_encoder,
+            "wrist_vision_encoder": self.wrist_vision_encoder,
             "noise_pred_unet": self.noise_pred_unet
         })
-        print("Vision encoder #params: ", sum(p.numel() for p in self.vision_encoder.parameters()))
+        print("Top vision encoder #params: ", sum(p.numel() for p in self.top_vision_encoder.parameters()))
+        print("Wrist vision encoder #params: ", sum(p.numel() for p in self.wrist_vision_encoder.parameters()))
         print("Noise pred unet #params: ", sum(p.numel() for p in self.noise_pred_unet.parameters()))
 
-        self.noise_scheduler = DiffusionNoiseScheduler(
-            num_steps=self.config.diffusion_steps,
+        self.noise_scheduler = DDIMScheduler(
+            num_train_timesteps=config.train_steps,
             beta_start=0.0001,
             beta_end=0.02,
             beta_schedule=self.config.diffusion_beta_schedule,
-            device=self.device
-        )
+            clip_sample=self.config.clip_sample,
+            clip_sample_range=self.config.clip_sample_range,
+            prediction_type=self.config.prediction_type,
+        ) 
+        # DiffusionNoiseScheduler(
+        #     num_steps=self.config.diffusion_steps,
+        #     beta_start=0.0001,
+        #     beta_end=0.02,
+        #     beta_schedule=self.config.diffusion_beta_schedule,
+        #     device=self.device
+        # )
         self.nets.to(self.device)
     
     def _concatenate_obs_cond(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
-        image_features = self.nets["vision_encoder"](batch[OBS_IMAGES_TOP])
+        image_features = self.nets["top_vision_encoder"](batch[OBS_IMAGES_TOP])
+        wrist_image_features = self.nets["wrist_vision_encoder"](batch[OBS_IMAGES_WRIST])
         state_features = batch[OBS_STATE]
-        obs = torch.cat([image_features, state_features], dim=-1) # (B, n_obs_steps * (vision_feature_dim + config.joint_dim))
+        obs = torch.cat([image_features, wrist_image_features, state_features], dim=-1) # (B, n_obs_steps * (2 * vision_feature_dim + config.joint_dim))
         return obs
 
 
@@ -123,10 +141,12 @@ class DiffusionEECS467Model(nn.Module):
         # Start from pure noise
         sample = torch.randn(batch_size, self.config.horizon, self.action_dim).to(obs_cond.device)
 
-        for t in reversed(range(self.config.diffusion_steps)):
+        self.noise_scheduler.set_timesteps(self.config.inference_steps)
+
+        for t in self.noise_scheduler.timesteps:
             timesteps = torch.full((batch_size,), t, device=obs_cond.device, dtype=torch.long)
             noise_pred = self.noise_pred_unet(sample=sample, timesteps=timesteps, global_cond=obs_cond)
-            sample = self.noise_scheduler.denoise(sample, noise_pred, timesteps)
+            sample = self.noise_scheduler.step(noise_pred, t, sample).prev_sample
 
         start = self.config.n_obs_steps - 1
         end = start + self.config.n_action_steps
@@ -229,6 +249,7 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
     def reset(self):
         self._queues = {
             OBS_IMAGES_TOP: deque(maxlen=self.config.n_obs_steps),
+            OBS_IMAGES_WRIST: deque(maxlen=self.config.n_obs_steps),
             OBS_STATE: deque(maxlen=self.config.n_obs_steps),
             ACTION: deque(maxlen=self.config.n_action_steps)
         }

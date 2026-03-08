@@ -1,1 +1,2 @@
-pip install pyapriltags
+diffusers
+lerobot[feetech]==0.4.3

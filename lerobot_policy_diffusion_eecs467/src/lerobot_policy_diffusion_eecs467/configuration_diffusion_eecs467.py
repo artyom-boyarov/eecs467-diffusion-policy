@@ -19,9 +19,15 @@ class DiffusionEECS467Config(PreTrainedConfig):
     horizon: int = 16
 
     # Diffusion model parameters
-    diffusion_steps: int = 100
+    diffusion_steps: int = 100 # TODO: Get rid of this and use train_steps instead
+    train_steps: int = 100
+    inference_steps: int = 50
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
     diffusion_step_embed_dim: int = 256
+    clip_sample: bool = True
+    clip_sample_range: float = 1.0
+    prediction_type: str = "epsilon"
+
 
     # Vision encoder parameters
     vision_encoder_name: str = "resnet18"

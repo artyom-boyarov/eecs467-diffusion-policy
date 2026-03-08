@@ -1,4 +1,5 @@
 from lerobot.cameras.realsense import RealSenseCameraConfig
+from lerobot.cameras.opencv import OpenCVCameraConfig
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.datasets.utils import hw_to_dataset_features
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
@@ -19,6 +20,9 @@ from lerobot.processor.pipeline import (
     EnvTransition,
     ObservationProcessorStep,
 )
+from lerobot.policies.pretrained import PreTrainedPolicy, PreTrainedConfig
+from lerobot.policies.act.configuration_act import ACTConfig
+from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.utils.control_utils import init_keyboard_listener
 from lerobot.utils.utils import log_say
 from lerobot.utils.visualization_utils import init_rerun
@@ -76,6 +80,9 @@ robot_config = SO101FollowerConfig(
     cameras={
         "top": RealSenseCameraConfig(
             serial_number_or_name="409122274501", width=640, height=480, fps=FPS
+        ),
+        "wrist": OpenCVCameraConfig(
+            index_or_path="/dev/video4", width=640, height=480, fps=FPS
         )
     },
     port="/dev/ttyACM0",
@@ -96,7 +103,7 @@ obs_features = hw_to_dataset_features(robot.observation_features, "observation")
 dataset_features = {**action_features, **obs_features}
 
 # Create the dataset
-DATASET_NAME = "eval_red-block-white-square"
+DATASET_NAME = "eval_red-block-ar-tag-2-cameras"
 HF_USER = "aboyarov"
 try:
     dataset = LeRobotDataset.create(
@@ -156,6 +163,8 @@ teleop_action_processor, robot_action_processor, robot_observation_processor = (
 #     )
 
 
+policy = ACTPolicy.from_pretrained("aboyarov/redblock_ar_tag_act")
+
 episode_idx = 0
 while episode_idx < NUM_EPISODES and not events["stop_recording"]:
     robot.send_action(INIT_ANGLES)
@@ -173,6 +182,7 @@ while episode_idx < NUM_EPISODES and not events["stop_recording"]:
         control_time_s=EPISODE_TIME_SEC,
         single_task=TASK_DESCRIPTION,
         display_data=True,
+        # policy=policy
     )
 
     # Reset the environment if not stopping or re-recording
@@ -182,7 +192,7 @@ while episode_idx < NUM_EPISODES and not events["stop_recording"]:
         log_say("Reset the environment")
 
         robot.send_action(INIT_ANGLES)
-        time.sleep(RESET_TIME_SEC)
+        _ = input("Press Enter when ready for the next episode...")
 
     if events["rerecord_episode"]:
         log_say("Re-recording episode")

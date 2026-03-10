@@ -1,0 +1,2 @@
+export HF_USER=<your username>
+export HUGGINGFACE_TOKEN=<your token>

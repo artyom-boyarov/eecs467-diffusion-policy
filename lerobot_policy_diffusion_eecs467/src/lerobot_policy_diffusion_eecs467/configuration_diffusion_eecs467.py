@@ -21,7 +21,7 @@ class DiffusionEECS467Config(PreTrainedConfig):
     # Diffusion model parameters
     diffusion_steps: int = 100 # TODO: Get rid of this and use train_steps instead
     train_steps: int = 100
-    inference_steps: int = 50
+    inference_steps: int = 100
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
     diffusion_step_embed_dim: int = 256
     diffusion_beta_start = 0.0001

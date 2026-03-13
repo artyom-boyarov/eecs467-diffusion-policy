@@ -16,6 +16,7 @@ from lerobot.utils.constants import (
 from lerobot.policies.utils import populate_queues, get_output_shape
 
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultistepScheduler
 
 from lerobot_policy_diffusion_eecs467.diffusion_utils import DiffusionNoiseScheduler, get_resnet
@@ -166,6 +167,11 @@ class DiffusionEECS467Model(nn.Module):
 
         image = batch[OBS_IMAGES_TOP]
         state = batch[OBS_STATE]
+
+        # Add random noise to joint angles
+        joint_noise = 0.1 * torch.randn_like(state)
+        batch[OBS_STATE] = state + joint_noise
+        
         action  = batch[ACTION]
 
         noise = torch.randn_like(action)

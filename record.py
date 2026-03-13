@@ -133,11 +133,22 @@ def main():
         id="follower_arm",
         cameras={
             "top": RealSenseCameraConfig(
-                serial_number_or_name="409122274501", width=640, height=480, fps=FPS
+                serial_number_or_name="152222070462", 
+                width=640, 
+                height=480, 
+                fps=FPS,
+                use_depth=False
             ),
-            "wrist": OpenCVCameraConfig(
-                index_or_path="/dev/video4", width=640, height=480, fps=FPS
-            )
+            "wrist": RealSenseCameraConfig(
+                serial_number_or_name="409122274501", 
+                width=640,
+                height=480,
+                fps=FPS,
+                use_depth=False
+            ),
+            # "wrist": OpenCVCameraConfig(
+            #     index_or_path="/dev/video4", width=640, height=480, fps=FPS
+            # ),
         },
         port="/dev/ttyACM0",
     )
@@ -236,7 +247,6 @@ def main():
             log_say("Reset the environment")
 
             robot.send_action(INIT_ANGLES)
-            _ = input("Press Enter when ready for the next episode...")
 
         if events["rerecord_episode"]:
             log_say("Re-recording episode")
@@ -246,6 +256,7 @@ def main():
             continue
 
         dataset.save_episode()
+        _ = input("Press Enter when ready for the next episode...")
         episode_idx += 1
 
     # Clean up

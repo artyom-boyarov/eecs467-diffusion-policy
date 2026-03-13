@@ -108,9 +108,9 @@ class DiffusionEECS467Model(nn.Module):
         print("Noise pred unet #params: ", sum(p.numel() for p in self.noise_pred_unet.parameters()))
 
         self.noise_scheduler = DDIMScheduler(
-            num_train_timesteps=config.train_steps,
-            beta_start=0.0001,
-            beta_end=0.02,
+            num_train_timesteps=(config.train_steps if self.training else config.inference_steps),
+            beta_start=config.diffusion_beta_start,
+            beta_end=config.diffusion_beta_end,
             beta_schedule=self.config.diffusion_beta_schedule,
             clip_sample=self.config.clip_sample,
             clip_sample_range=self.config.clip_sample_range,
@@ -173,11 +173,12 @@ class DiffusionEECS467Model(nn.Module):
         noisy_actions = self.noise_scheduler.add_noise(action, noise, timesteps)
         
         obs_cond = self._concatenate_obs_cond(batch)
-
+        
 
         noise_pred = self.noise_pred_unet(sample=noisy_actions, timesteps=timesteps, global_cond=obs_cond.flatten(start_dim=1))
         loss = nn.MSELoss()(noise_pred, noise)
         return loss
+    
 
 
 class DiffusionEECS467VisionEncoder(nn.Module):

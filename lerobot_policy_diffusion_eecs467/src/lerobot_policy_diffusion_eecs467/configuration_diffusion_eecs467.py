@@ -24,6 +24,8 @@ class DiffusionEECS467Config(PreTrainedConfig):
     inference_steps: int = 50
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
     diffusion_step_embed_dim: int = 256
+    diffusion_beta_start = 0.0001
+    diffusion_beta_end = 0.02
     clip_sample: bool = True
     clip_sample_range: float = 1.0
     prediction_type: str = "epsilon"

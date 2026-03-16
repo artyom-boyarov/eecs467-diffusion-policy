@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --partition=gpu
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem-per-cpu=1000m
+#SBATCH --mem-per-cpu=4000m
 #SBATCH --time=6:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --output=/home/%u/diff_eecs467_train-%x-%j.log
@@ -18,4 +18,4 @@ source .venv/bin/activate
 pip3 install -r requirements.txt
 pip3 install -e .
 source ~/hf_token
-lerobot-train --dataset.repo_id=${HF_USER}/eval_redblock-ar-tag-2-cameras --policy.type=diffusion_eecs467 --output_dir=outputs/train/eecs467_diffusion --job_name=eecs467_diffusion_train --policy.device=cuda --policy.repo_id=${HF_USER}/redblock-2-cameras-ar-tag-diffusion-eecs467 --step 20000 --save_freq 1000
+lerobot-train --dataset.repo_id=${HF_USER}/eval_redblock-ar-tag-2-cameras --policy.type=diffusion_eecs467 --output_dir=outputs/train/eecs467_diffusion --job_name=eecs467_diffusion_train --policy.device=cuda --policy.repo_id=${HF_USER}/redblock-2-cameras-ar-tag-diffusion-eecs467 --step 50000 --save_freq 5000

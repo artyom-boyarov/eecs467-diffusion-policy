@@ -169,7 +169,7 @@ class DiffusionEECS467Model(nn.Module):
         state = batch[OBS_STATE]
 
         # Add random noise to joint angles
-        joint_noise = 0.1 * torch.randn_like(state)
+        joint_noise = 0.025 * torch.randn_like(state)
         batch[OBS_STATE] = state + joint_noise
         
         action  = batch[ACTION]

@@ -175,7 +175,7 @@ class DiffusionEECS467Model(nn.Module):
         action  = batch[ACTION]
 
         noise = torch.randn_like(action)
-        timesteps = torch.randint(0, self.config.diffusion_steps, (action.shape[0],), device=action.device)
+        timesteps = torch.randint(0, self.config.train_steps, (action.shape[0],), device=action.device)
         noisy_actions = self.noise_scheduler.add_noise(action, noise, timesteps)
         
         obs_cond = self._concatenate_obs_cond(batch)

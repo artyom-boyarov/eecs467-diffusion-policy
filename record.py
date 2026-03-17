@@ -128,8 +128,14 @@ def main():
     global DATASET_NAME
     DATASET_NAME = args.dataset_name
 
+    # Order of connection:
+    # 1: Robot follower 1
+    # 2: Robot leader 1
+    # 3: Robot follower 2
+    # 4: Robot leader 2
+
     # Create robot configuration
-    robot_config = SO101FollowerConfig(
+    robot1_config = SO101FollowerConfig(
         id="follower_arm",
         cameras={
             "top": RealSenseCameraConfig(
@@ -152,21 +158,36 @@ def main():
         },
         port="/dev/ttyACM0",
     )
+    robot2_config = SO101FollowerConfig(
+        id="follower_arm_2",
+        port="/dev/ttyACM2",
+    )
 
-    teleop_config = SO101LeaderConfig(
+    teleop1_config = SO101LeaderConfig(
         id="leader_arm",
         port="/dev/ttyACM1",
     )
 
+    teleop2_config = SO101LeaderConfig(
+        id="leader_arm_2",
+        port="/dev/ttyACM3",
+    )
+
     # Initialize the robot and teleoperator
-    robot = SO101Follower(robot_config)
-    teleop = SO101Leader(teleop_config)
+    robot1 = SO101Follower(robot1_config)
+    robot2 = SO101Follower(robot2_config)
+    teleop1 = SO101Leader(teleop1_config)
+    teleop2 = SO101Leader(teleop2_config)
 
     # Configure the dataset features
-    action_features = hw_to_dataset_features(robot.action_features, "action")
-    obs_features = hw_to_dataset_features(robot.observation_features, "observation")
-    dataset_features = {**action_features, **obs_features}
+    robot1_action_features = hw_to_dataset_features(robot1.action_features, "action.robot1")
+    
+    robot2_action_features = hw_to_dataset_features(robot2.action_features, "action.robot2")
+    robot1_obs_features = hw_to_dataset_features(robot1.observation_features, "observation.robot1")
+    robot2_obs_features = hw_to_dataset_features(robot2.observation_features, "observation.robot2")
+    dataset_features = {**robot1_action_features, **robot2_action_features, **robot1_obs_features, **robot2_obs_features}
 
+    print("Dataset features:", dataset_features)
     # Create the dataset
     HF_USER = os.getenv("HF_USER") or "aboyarov"
     try:
@@ -174,7 +195,7 @@ def main():
             repo_id=f"{HF_USER}/{DATASET_NAME}",
             fps=FPS,
             features=dataset_features,
-            robot_type=robot.name,
+            robot_type=robot1.name,
             use_videos=True,
             image_writer_threads=4,
         )
@@ -192,7 +213,7 @@ def main():
             repo_id=f"{HF_USER}/{DATASET_NAME}",
             fps=FPS,
             features=dataset_features,
-            robot_type=robot.name,
+            robot_type=robot1.name,
             use_videos=True,
             image_writer_threads=4,
         )
@@ -201,8 +222,10 @@ def main():
     _, events = init_keyboard_listener()
 
     # Connect the robot and teleoperator
-    robot.connect()
-    teleop.connect()
+    robot1.connect()
+    robot2.connect()
+    teleop1.connect()
+    teleop2.connect()
 
     INIT_ANGLES = {
         "shoulder_pan.pos": 0.0,
@@ -212,7 +235,8 @@ def main():
         "wrist_roll.pos": 0.0,
         "gripper.pos": 3.0,
     }  # Starting joint configuration.
-    robot.send_action(INIT_ANGLES)
+    robot1.send_action(INIT_ANGLES)
+    robot2.send_action(INIT_ANGLES)
 
     time.sleep(RESET_TIME_SEC)
     # Create the required processors
@@ -222,21 +246,22 @@ def main():
 
     episode_idx = 0
     while episode_idx < NUM_EPISODES and not events["stop_recording"]:
-        robot.send_action(INIT_ANGLES)
+        robot1.send_action(INIT_ANGLES)
+        robot2.send_action(INIT_ANGLES)
         log_say(f"Recording episode {episode_idx + 1} of {NUM_EPISODES}")
 
         record_loop(
-            robot=robot,
+            robots=[robot1, robot2],
             events=events,
             fps=FPS,
             teleop_action_processor=teleop_action_processor,
             robot_action_processor=robot_action_processor,
             robot_observation_processor=robot_observation_processor,
-            teleop=teleop,
+            teleop=[teleop1, teleop2],
             dataset=dataset,
             control_time_s=EPISODE_TIME_SEC,
             single_task=TASK_DESCRIPTION,
-            display_data=True,
+            display_data=False,
             # policy=policy
         )
 
@@ -246,7 +271,8 @@ def main():
         ):
             log_say("Reset the environment")
 
-            robot.send_action(INIT_ANGLES)
+            robot1.send_action(INIT_ANGLES)
+            robot2.send_action(INIT_ANGLES)
 
         if events["rerecord_episode"]:
             log_say("Re-recording episode")
@@ -261,8 +287,10 @@ def main():
 
     # Clean up
     log_say("Stop recording")
-    robot.disconnect()
-    teleop.disconnect()
+    robot1.disconnect()
+    teleop1.disconnect()
+    robot2.disconnect()
+    teleop2.disconnect()
     dataset.finalize()
     dataset.push_to_hub()
 

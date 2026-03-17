@@ -17,10 +17,17 @@ from lerobot.policies.utils import populate_queues, get_output_shape
 
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-from diffusers.schedulers.scheduling_dpmsolver_multistep import DPMSolverMultistepScheduler
+from diffusers.schedulers.scheduling_dpmsolver_multistep import (
+    DPMSolverMultistepScheduler,
+)
 
-from lerobot_policy_diffusion_eecs467.diffusion_utils import DiffusionNoiseScheduler, get_resnet
-from lerobot_policy_diffusion_eecs467.configuration_diffusion_eecs467 import DiffusionEECS467Config
+from lerobot_policy_diffusion_eecs467.diffusion_utils import (
+    DiffusionNoiseScheduler,
+    get_resnet,
+)
+from lerobot_policy_diffusion_eecs467.configuration_diffusion_eecs467 import (
+    DiffusionEECS467Config,
+)
 
 
 OBS_IMAGES_TOP = "observation.images.top"
@@ -28,9 +35,10 @@ OBS_IMAGES_WRIST = "observation.images.wrist"
 
 from typing import Dict, Any
 
+
 # Taken from LeRobot diffusion implementation
 class SpatialSoftmax(nn.Module):
-    def __init__(self, input_shape, num_kp = None):
+    def __init__(self, input_shape, num_kp=None):
         """
         Args:
             input_shape (list): (C, H, W) input feature map shape.
@@ -49,7 +57,9 @@ class SpatialSoftmax(nn.Module):
 
         # we could use torch.linspace directly but that seems to behave slightly differently than numpy
         # and causes a small degradation in pc_success of pre-trained models.
-        pos_x, pos_y = np.meshgrid(np.linspace(-1.0, 1.0, self._in_w), np.linspace(-1.0, 1.0, self._in_h))
+        pos_x, pos_y = np.meshgrid(
+            np.linspace(-1.0, 1.0, self._in_w), np.linspace(-1.0, 1.0, self._in_h)
+        )
         pos_x = torch.from_numpy(pos_x.reshape(self._in_h * self._in_w, 1)).float()
         pos_y = torch.from_numpy(pos_y.reshape(self._in_h * self._in_w, 1)).float()
         # register as buffer so it's moved to the correct device.
@@ -86,67 +96,120 @@ class DiffusionEECS467Model(nn.Module):
         self.top_vision_encoder = DiffusionEECS467VisionEncoder(config)
         self.wrist_vision_encoder = DiffusionEECS467VisionEncoder(config)
 
-        self.vision_feature_dim = self.top_vision_encoder.feature_dim + self.wrist_vision_encoder.feature_dim  # ResNet18 output feature dimension
-        self.obs_dim = self.vision_feature_dim + self.config.joint_dim
+        self.vision_feature_dim = (
+            self.top_vision_encoder.feature_dim + self.wrist_vision_encoder.feature_dim
+        )  # ResNet18 output feature dimension
+        self.obs_dim = self.vision_feature_dim + self.config.joint_dim * self.config.num_robots
         self.action_dim = self.config.action_dim
 
         self.noise_pred_unet = ConditionalUnet1D(
-            input_dim=self.action_dim,
+            input_dim=self.action_dim * self.config.num_robots,
             global_cond_dim=self.obs_dim * self.config.n_obs_steps,
             diffusion_step_embed_dim=self.config.diffusion_step_embed_dim,
-            down_dims=[512, 1024, 2048],
+            down_dims= [64, 128, 256], # [512, 1024, 2048], # TODO: CHange back
             kernel_size=5,
-            n_groups=8
+            n_groups=8,
         )
 
-        self.nets = torch.nn.ModuleDict({
-            "top_vision_encoder": self.top_vision_encoder,
-            "wrist_vision_encoder": self.wrist_vision_encoder,
-            "noise_pred_unet": self.noise_pred_unet
-        })
-        print("Top vision encoder #params: ", sum(p.numel() for p in self.top_vision_encoder.parameters()))
-        print("Wrist vision encoder #params: ", sum(p.numel() for p in self.wrist_vision_encoder.parameters()))
-        print("Noise pred unet #params: ", sum(p.numel() for p in self.noise_pred_unet.parameters()))
-
-        self.noise_scheduler = DDIMScheduler(
-            num_train_timesteps=(config.train_steps if self.training else config.inference_steps),
-            beta_start=config.diffusion_beta_start,
-            beta_end=config.diffusion_beta_end,
-            beta_schedule=self.config.diffusion_beta_schedule,
-            clip_sample=self.config.clip_sample,
-            clip_sample_range=self.config.clip_sample_range,
-            prediction_type=self.config.prediction_type,
-        ) 
-        # DiffusionNoiseScheduler(
-        #     num_steps=self.config.diffusion_steps,
-        #     beta_start=0.0001,
-        #     beta_end=0.02,
-        #     beta_schedule=self.config.diffusion_beta_schedule,
-        #     device=self.device
-        # )
+        self.nets = torch.nn.ModuleDict(
+            {
+                "top_vision_encoder": self.top_vision_encoder,
+                "wrist_vision_encoder": self.wrist_vision_encoder,
+                "noise_pred_unet": self.noise_pred_unet,
+            }
+        )
         self.nets.to(self.device)
-    
-    def _concatenate_obs_cond(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
-        image_features = self.nets["top_vision_encoder"](batch[OBS_IMAGES_TOP])
-        wrist_image_features = self.nets["wrist_vision_encoder"](batch[OBS_IMAGES_WRIST])
-        state_features = batch[OBS_STATE]
-        obs = torch.cat([image_features, wrist_image_features, state_features], dim=-1) # (B, n_obs_steps * (2 * vision_feature_dim + config.joint_dim))
-        return obs
 
+        print(
+            "Top vision encoder #params: ",
+            sum(p.numel() for p in self.top_vision_encoder.parameters()),
+        )
+        print(
+            "Wrist vision encoder #params: ",
+            sum(p.numel() for p in self.wrist_vision_encoder.parameters()),
+        )
+        print(
+            "Noise pred unet #params: ",
+            sum(p.numel() for p in self.noise_pred_unet.parameters()),
+        )
+
+        self.noise_scheduler = self.get_scheduler(config)
+
+        self.OBS_IMAGES_TOP = (
+            OBS_IMAGES_TOP
+            if self.config.num_robots == 1
+            else f"observation.{self.config.robot_obs_prefix}1.images.top"
+        )
+        self.OBS_IMAGES_WRIST = (
+            OBS_IMAGES_WRIST
+            if self.config.num_robots == 1
+            else f"observation.{self.config.robot_obs_prefix}1.images.wrist"
+        )
+
+    def get_scheduler(self, config):
+        if config.diffusion_train_scheduler == "DDPM":
+            return DDPMScheduler(
+                num_train_timesteps=(
+                    config.train_steps if self.training else config.inference_steps
+                ),
+                beta_start=config.diffusion_beta_start,
+                beta_end=config.diffusion_beta_end,
+                beta_schedule=config.diffusion_beta_schedule,
+                clip_sample=config.clip_sample,
+                timestep_spacing=1,
+                steps_offset=0,
+            )
+        elif config.diffusion_train_scheduler == "DDIM":
+            return DDIMScheduler(
+                num_train_timesteps=(
+                    config.train_steps if self.training else config.inference_steps
+                ),
+                beta_start=config.diffusion_beta_start,
+                beta_end=config.diffusion_beta_end,
+                beta_schedule=self.config.diffusion_beta_schedule,
+                clip_sample=self.config.clip_sample,
+                clip_sample_range=self.config.clip_sample_range,
+                prediction_type=self.config.prediction_type,
+            )
+
+    def _concatenate_obs_cond(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        image_features = self.nets["top_vision_encoder"](batch[self.OBS_IMAGES_TOP])
+        wrist_image_features = self.nets["wrist_vision_encoder"](
+            batch[self.OBS_IMAGES_WRIST]
+        )
+
+        state_features = []
+        for key in batch:
+            if key.endswith("state"):
+                # (B, n_obs_steps, state_dim)
+                state_features.append(batch[key])
+
+        state_features = torch.cat(state_features, dim=-1) if state_features else torch.empty(0)
+
+        obs = torch.cat(
+            [image_features, wrist_image_features, state_features], dim=-1
+        )  # (B, n_obs_steps * (2 * vision_feature_dim + config.joint_dim))
+        return obs
 
     def generate_actions(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         obs_cond = self._concatenate_obs_cond(inputs)
         batch_size = obs_cond.shape[0]
-        obs_cond = obs_cond.flatten(start_dim=1) # (B, n_obs_steps * obs_dim)
+        obs_cond = obs_cond.flatten(start_dim=1)  # (B, n_obs_steps * obs_dim)
 
         # Start from pure noise
-        sample = torch.randn(batch_size, self.config.horizon, self.action_dim).to(obs_cond.device)
+        sample = torch.randn(
+            batch_size, self.config.horizon, self.action_dim * self.config.num_robots
+        ).to(obs_cond.device)
 
         self.noise_scheduler.set_timesteps(self.config.inference_steps)
 
         for t in self.noise_scheduler.timesteps:
-            timesteps = torch.full((batch_size,), t, device=obs_cond.device, dtype=torch.long)
-            noise_pred = self.noise_pred_unet(sample=sample, timesteps=timesteps, global_cond=obs_cond)
+            timesteps = torch.full(
+                (batch_size,), t, device=obs_cond.device, dtype=torch.long
+            )
+            noise_pred = self.noise_pred_unet(
+                sample=sample, timesteps=timesteps, global_cond=obs_cond
+            )
             sample = self.noise_scheduler.step(noise_pred, t, sample).prev_sample
 
         start = self.config.n_obs_steps - 1
@@ -163,28 +226,42 @@ class DiffusionEECS467Model(nn.Module):
             "observation.images.top": (B, n_obs_steps, C, H, W)
             "action": (B, action_horizon, action_dim)
         }
+        In case of multiple robots:
+        {
+            "observation.robot1.state": (B, n_obs_steps, state_dim)
+            "observation.robot2.state": (B, n_obs_steps, state_dim)
+            "observation.robot1.images.top": (B, n_obs_steps, C, H, W)
+            "observation.robot1.images.wrist": (B, n_obs_steps, C, H, W)
+            "action": (B, action_horizon, action_dim * num_robots)
+        }
+            - Camera views will always belong to robot 1
+
         """
+        # Adding random noise to state inputs for better generalization, as done in the original Diffusion Policy implementation. See https://arxiv.org/abs/2303.04137 for details.
+        for key in batch:
+            if key.endswith("state"):
+                batch[key] = batch[
+                    key
+                ] + self.config.joint_noise_std * torch.randn_like(batch[key])
 
-        image = batch[OBS_IMAGES_TOP]
-        state = batch[OBS_STATE]
-
-        # Add random noise to joint angles
-        joint_noise = 0.025 * torch.randn_like(state)
-        batch[OBS_STATE] = state + joint_noise
-        
-        action  = batch[ACTION]
-
+        # Concatenate actions into one (B, action_horizon, num_robots * action_dim) tensor
+        action = batch[ACTION] # (B, action_horizon, action_dim * num_robots)
         noise = torch.randn_like(action)
-        timesteps = torch.randint(0, self.config.train_steps, (action.shape[0],), device=action.device)
+        timesteps = torch.randint(
+            0, self.config.train_steps, (action.shape[0],), device=action.device
+        )
         noisy_actions = self.noise_scheduler.add_noise(action, noise, timesteps)
-        
-        obs_cond = self._concatenate_obs_cond(batch)
-        
 
-        noise_pred = self.noise_pred_unet(sample=noisy_actions, timesteps=timesteps, global_cond=obs_cond.flatten(start_dim=1))
+        obs_cond = self._concatenate_obs_cond(batch)
+
+        noise_pred = self.noise_pred_unet(
+            sample=noisy_actions,
+            timesteps=timesteps,
+            global_cond=obs_cond.flatten(start_dim=1),
+        )
         loss = nn.MSELoss()(noise_pred, noise)
+        print("Loss:", loss.item())
         return loss
-    
 
 
 class DiffusionEECS467VisionEncoder(nn.Module):
@@ -192,44 +269,59 @@ class DiffusionEECS467VisionEncoder(nn.Module):
         super().__init__()
         self.config = config
         self.resnet = get_resnet("resnet18", weights="IMAGENET1K_V1")
-        self.resnet = nn.Sequential(*list(self.resnet.children())[:-2]) # Remove avgpool and fc layers
-        
-        self.feature_map_shape = get_output_shape(self.resnet, (1, 3, *config.crop_shape))[1:]
-        self.pool = SpatialSoftmax(input_shape=self.feature_map_shape, num_kp=config.spatial_softmax_kp)
+        self.resnet = nn.Sequential(
+            *list(self.resnet.children())[:-2]
+        )  # Remove avgpool and fc layers
+
+        self.feature_map_shape = get_output_shape(
+            self.resnet, (1, 3, *config.crop_shape)
+        )[1:]
+        self.pool = SpatialSoftmax(
+            input_shape=self.feature_map_shape, num_kp=config.spatial_softmax_kp
+        )
         self.feature_dim = config.spatial_softmax_kp * 2
         self.linear = nn.Linear(self.feature_dim, self.feature_dim)
         self.relu = nn.ReLU()
 
         self.encode_image = nn.Sequential(
-            self.resnet,
-            self.pool,
-            nn.Flatten(),
-            self.linear,
-            self.relu
+            self.resnet, self.pool, nn.Flatten(), self.linear, self.relu
         )
         self.resize = torchvision.transforms.Resize(config.resize_shape)
         self.center_crop = torchvision.transforms.CenterCrop(config.crop_shape)
-        self.random_crop = torchvision.transforms.RandomCrop(config.crop_shape) if config.random_crop else self.center_crop
+        self.random_crop = (
+            torchvision.transforms.RandomCrop(config.crop_shape)
+            if config.random_crop
+            else self.center_crop
+        )
 
     def forward(self, image_batch: torch.Tensor) -> torch.Tensor:
 
         # Center/Random crop for training/inference.
-        image_batch = self.resize(image_batch.flatten(0, 1)) # (B * n_obs_steps, C, H, W)
+        image_batch = self.resize(
+            image_batch.flatten(0, 1)
+        )  # (B * n_obs_steps, C, H, W)
         if self.training:
-            image_batch = self.random_crop(image_batch) # (B * n_obs_steps, C, H, W)
+            image_batch = self.random_crop(image_batch)  # (B * n_obs_steps, C, H, W)
         else:
-            image_batch = self.center_crop(image_batch) # (B * n_obs_steps, C, H, W)
-        
-        image_batch = image_batch.view(-1, self.config.n_obs_steps, *image_batch.shape[1:]) # (B, n_obs_steps, C, H, W)
-        
+            image_batch = self.center_crop(image_batch)  # (B * n_obs_steps, C, H, W)
+
+        image_batch = image_batch.view(
+            -1, self.config.n_obs_steps, *image_batch.shape[1:]
+        )  # (B, n_obs_steps, C, H, W)
+
         image_features = []
         for image_minibatch in image_batch:
             image_minibatch_encoded = []
             for i in range(self.config.n_obs_steps):
-                image_minibatch_encoded.append(self.encode_image(image_minibatch[i].unsqueeze(0)).squeeze())
+                image_minibatch_encoded.append(
+                    self.encode_image(image_minibatch[i].unsqueeze(0)).squeeze()
+                )
             image_minibatch_encoded = torch.stack(image_minibatch_encoded)
-            image_features.append(image_minibatch_encoded) # (n_obs_steps, vision_feature_dim)
-        return torch.stack(image_features) # (B, n_obs_steps, vision_feature_dim)
+            image_features.append(
+                image_minibatch_encoded
+            )  # (n_obs_steps, vision_feature_dim)
+        return torch.stack(image_features)  # (B, n_obs_steps, vision_feature_dim)
+
 
 class DiffusionEECS467Policy(PreTrainedPolicy):
     """
@@ -240,7 +332,12 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
     config_class = DiffusionEECS467Config
     name = "diffusion_eecs467"
 
-    def __init__(self, config: DiffusionEECS467Config, dataset_stats: Dict[str, Any] | None = None, **kwargs):
+    def __init__(
+        self,
+        config: DiffusionEECS467Config,
+        dataset_stats: Dict[str, Any] | None = None,
+        **kwargs,
+    ):
         super().__init__(config, dataset_stats, **kwargs)
 
         config.validate_features()
@@ -251,19 +348,18 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
         self.dp_model = DiffusionEECS467Model(config)
 
         self.reset()
-        
-    
+
     def reset(self):
         self._queues = {
             OBS_IMAGES_TOP: deque(maxlen=self.config.n_obs_steps),
             OBS_IMAGES_WRIST: deque(maxlen=self.config.n_obs_steps),
             OBS_STATE: deque(maxlen=self.config.n_obs_steps),
-            ACTION: deque(maxlen=self.config.n_action_steps)
+            ACTION: deque(maxlen=self.config.n_action_steps),
         }
 
     def get_optim_params(self):
         return self.dp_model.parameters()
-        
+
     @torch.no_grad()
     def predict_action_chunk(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         inputs = {
@@ -273,7 +369,7 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
         }
         print("State inputs:", inputs[OBS_STATE])
         return self.dp_model.generate_actions(inputs)
-    
+
     @torch.no_grad()
     def select_action(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         if ACTION in batch:
@@ -283,7 +379,7 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
         if len(self._queues[ACTION]) == 0:
             actions = self.predict_action_chunk(batch)
             self._queues[ACTION].extend(actions.transpose(0, 1))
-        
+
         print("Predicted actions:", self._queues[ACTION])
 
         return self._queues[ACTION].popleft()

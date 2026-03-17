@@ -28,6 +28,8 @@ def make_diffusion_eecs467_pre_post_processors(
     PolicyProcessorPipeline[dict[str, Any], dict[str, Any]],
     PolicyProcessorPipeline[PolicyAction, PolicyAction],
 ]:
+    # print("Input features for preprocessor:", config.input_features)
+    # print("Output features for preprocessor:", config.output_features)
     input_steps = [
         RenameObservationsProcessorStep(rename_map={}), # Renames observations to expected keys
         AddBatchDimensionProcessorStep(), # Adds batch dimension

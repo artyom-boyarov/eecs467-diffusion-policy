@@ -10,8 +10,11 @@ from lerobot.configs.types import NormalizationMode
 class DiffusionEECS467Config(PreTrainedConfig):
 
     # Dimensions
+    num_robots = 2
+    # Per robot
     action_dim = 6
     joint_dim = 6
+    robot_obs_prefix = "robot"
 
     # Horizons
     n_obs_steps: int = 2
@@ -19,17 +22,17 @@ class DiffusionEECS467Config(PreTrainedConfig):
     horizon: int = 16
 
     # Diffusion model parameters
-    diffusion_steps: int = 100 # TODO: Get rid of this and use train_steps instead
     train_steps: int = 100
     inference_steps: int = 25
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
     diffusion_step_embed_dim: int = 256
     diffusion_beta_start = 0.0001
     diffusion_beta_end = 0.02
+    diffusion_train_scheduler: str = "DDPM"
+    diffusion_inference_scheduler: str = "DDIM"
     clip_sample: bool = True
     clip_sample_range: float = 1.0
     prediction_type: str = "epsilon"
-
 
     # Vision encoder parameters
     vision_encoder_name: str = "resnet18"
@@ -46,6 +49,7 @@ class DiffusionEECS467Config(PreTrainedConfig):
     weight_decay: float = 1e-6
     scheduler_name: str = "cosine"
     scheduler_warmup_steps: int = 500
+    joint_noise_std: float = 0.025
 
     # Normalization
     normalization_mapping: dict[str, NormalizationMode] = field(#

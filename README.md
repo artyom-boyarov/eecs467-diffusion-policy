@@ -18,15 +18,18 @@ pip install 'lerobot[feetech]'
 ```
 conda activate lerobot
 ```
-3. Install the drivers for (Intel Realsense Cameras)[https://github.com/realsenseai/librealsense/blob/master/doc/distribution_linux.md#installing-the-packages]
-4. Now follow instructions for teleoperation, dataset recording, etc. in the (imitation learning tutorial)[https://huggingface.co/docs/lerobot/il_robots]
+If you get issues about the wrong ffmpeg version - you forgot to run this command.
+
+3. Install the drivers for [Intel Realsense Cameras](https://github.com/realsenseai/librealsense/blob/master/doc/distribution_linux.md#installing-the-packages)
+4. Now follow instructions for teleoperation, dataset recording, etc. in the [imitation learning tutorial](https://huggingface.co/docs/lerobot/il_robots)
+If you get any errors about a motor connection, simply unplug and plug back in the motor control boards.
 
 ## Week 3: Training a model on Great Lakes
 1. Fork this repo, then clone it locally:
 ```
 git clone <your-forked-repo-url>
 ```
-2. (Log in)[https://huggingface.co/docs/lerobot/il_robots#record-a-dataset] to Hugging Face and store your credentials in a file called `hf_creds`. You can use `sample_hf_creds` and re-name it.
+2. [Log in](https://huggingface.co/docs/lerobot/il_robots#record-a-dataset) to Hugging Face and store your credentials in a file called `hf_creds`. You can use `sample_hf_creds` and re-name it.
 3. There are helper scripts added such as `record.py` which makes recording a dataset easier, and `rerun.sh` which runs inference with a trained policy.
 4. Clone the repo on Great Lakes - make sure it is public.
 5. Copy the `hf_creds` file to Great Lakes. **Don't push it to GitHub**.

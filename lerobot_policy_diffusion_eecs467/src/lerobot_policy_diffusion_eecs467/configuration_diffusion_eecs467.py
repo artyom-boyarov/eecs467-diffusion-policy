@@ -23,13 +23,14 @@ class DiffusionEECS467Config(PreTrainedConfig):
 
     # Diffusion model parameters
     train_steps: int = 100
-    inference_steps: int = 25
+    inference_steps: int = 100
+    diffusion_steps: int  = 100
     diffusion_beta_schedule: str = "squaredcos_cap_v2"
     diffusion_step_embed_dim: int = 256
     diffusion_beta_start = 0.0001
     diffusion_beta_end = 0.02
     diffusion_train_scheduler: str = "DDPM"
-    diffusion_inference_scheduler: str = "DDIM"
+    diffusion_inference_scheduler: str = "DDPM"
     clip_sample: bool = True
     clip_sample_range: float = 1.0
     prediction_type: str = "epsilon"

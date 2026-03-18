@@ -106,7 +106,7 @@ class DiffusionEECS467Model(nn.Module):
             input_dim=self.action_dim * self.config.num_robots,
             global_cond_dim=self.obs_dim * self.config.n_obs_steps,
             diffusion_step_embed_dim=self.config.diffusion_step_embed_dim,
-            down_dims= [64, 128, 256], # [512, 1024, 2048], # TODO: CHange back
+            down_dims=[512, 1024, 2048], # TODO: CHange back
             kernel_size=5,
             n_groups=8,
         )
@@ -147,30 +147,55 @@ class DiffusionEECS467Model(nn.Module):
         )
 
     def get_scheduler(self, config):
-        if config.diffusion_train_scheduler == "DDPM":
-            return DDPMScheduler(
-                num_train_timesteps=(
-                    config.train_steps if self.training else config.inference_steps
-                ),
-                beta_start=config.diffusion_beta_start,
-                beta_end=config.diffusion_beta_end,
-                beta_schedule=config.diffusion_beta_schedule,
-                clip_sample=config.clip_sample,
-                timestep_spacing=1,
-                steps_offset=0,
-            )
-        elif config.diffusion_train_scheduler == "DDIM":
-            return DDIMScheduler(
-                num_train_timesteps=(
-                    config.train_steps if self.training else config.inference_steps
-                ),
-                beta_start=config.diffusion_beta_start,
-                beta_end=config.diffusion_beta_end,
-                beta_schedule=self.config.diffusion_beta_schedule,
-                clip_sample=self.config.clip_sample,
-                clip_sample_range=self.config.clip_sample_range,
-                prediction_type=self.config.prediction_type,
-            )
+        if self.training:
+            if config.diffusion_train_scheduler == "DDPM":
+                return DDPMScheduler(
+                    num_train_timesteps=(
+                        config.train_steps if self.training else config.inference_steps
+                    ),
+                    beta_start=config.diffusion_beta_start,
+                    beta_end=config.diffusion_beta_end,
+                    beta_schedule=config.diffusion_beta_schedule,
+                    clip_sample=config.clip_sample,
+                    steps_offset=0,
+                )
+            elif config.diffusion_train_scheduler == "DDIM":
+                return DDIMScheduler(
+                    num_train_timesteps=(
+                        config.train_steps if self.training else config.inference_steps
+                    ),
+                    beta_start=config.diffusion_beta_start,
+                    beta_end=config.diffusion_beta_end,
+                    beta_schedule=self.config.diffusion_beta_schedule,
+                    clip_sample=self.config.clip_sample,
+                    clip_sample_range=self.config.clip_sample_range,
+                    prediction_type=self.config.prediction_type,
+                )
+        else:
+            if config.diffusion_inference_scheduler == "DDPM":
+                return DDPMScheduler(
+                    num_train_timesteps=(
+                        config.train_steps if self.training else config.inference_steps
+                    ),
+                    beta_start=config.diffusion_beta_start,
+                    beta_end=config.diffusion_beta_end,
+                    beta_schedule=config.diffusion_beta_schedule,
+                    clip_sample=config.clip_sample,
+                    steps_offset=0,
+                )
+            elif config.diffusion_inference_scheduler == "DDIM":
+                return DDIMScheduler(
+                    num_train_timesteps=(
+                        config.train_steps if self.training else config.inference_steps
+                    ),
+                    beta_start=config.diffusion_beta_start,
+                    beta_end=config.diffusion_beta_end,
+                    beta_schedule=self.config.diffusion_beta_schedule,
+                    clip_sample=self.config.clip_sample,
+                    clip_sample_range=self.config.clip_sample_range,
+                    prediction_type=self.config.prediction_type,
+                )
+
 
     def _concatenate_obs_cond(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         image_features = self.nets["top_vision_encoder"](batch[self.OBS_IMAGES_TOP])
@@ -350,12 +375,21 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
         self.reset()
 
     def reset(self):
-        self._queues = {
-            OBS_IMAGES_TOP: deque(maxlen=self.config.n_obs_steps),
-            OBS_IMAGES_WRIST: deque(maxlen=self.config.n_obs_steps),
-            OBS_STATE: deque(maxlen=self.config.n_obs_steps),
-            ACTION: deque(maxlen=self.config.n_action_steps),
-        }
+        if self.config.num_robots == 1:
+            self._queues = {
+                OBS_IMAGES_TOP: deque(maxlen=self.config.n_obs_steps),
+                OBS_IMAGES_WRIST: deque(maxlen=self.config.n_obs_steps),
+                OBS_STATE: deque(maxlen=self.config.n_obs_steps),
+                ACTION: deque(maxlen=self.config.n_action_steps),
+            }
+        else:
+            self._queues = {
+                f"observation.robot1.images.top": deque(maxlen=self.config.n_obs_steps),
+                f"observation.robot1.images.wrist": deque(maxlen=self.config.n_obs_steps),
+                f"observation.robot1.state": deque(maxlen=self.config.n_obs_steps),
+                f"observation.robot2.state": deque(maxlen=self.config.n_obs_steps),
+                ACTION: deque(maxlen=self.config.n_action_steps),
+            }
 
     def get_optim_params(self):
         return self.dp_model.parameters()
@@ -367,7 +401,6 @@ class DiffusionEECS467Policy(PreTrainedPolicy):
             for key in batch
             if key in self._queues
         }
-        print("State inputs:", inputs[OBS_STATE])
         return self.dp_model.generate_actions(inputs)
 
     @torch.no_grad()
